@@ -13,6 +13,49 @@ def search_web(query):
     print(f"\n📄 Raw results found: {len(results)}")
     return snippets
 
+def write_file(filename, content):
+    filepath = f"/Users/geoffreyveasy/MYSERVER/agent/data/{filename}"
+    import os
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "w") as f:
+        f.write(content)
+    print(f"\n💾 Saved to: {filepath}")
+    return filepath
+
+def read_file(filename):
+    filepath = f"/Users/geoffreyveasy/MYSERVER/agent/data/{filename}"
+    try:
+        with open(filepath, "r") as f:
+            content = f.read()
+        print(f"\n📖 Read from: {filepath}")
+        return content
+    except FileNotFoundError:
+        return f"File not found: {filename}"
+
+def get_weather(city):
+    import requests
+    print(f"\n🌤 Getting weather for: {city}")
+    
+    # First geocode the city to get coordinates
+    geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1"
+    geo = requests.get(geo_url).json()
+    
+    if not geo.get("results"):
+        return f"Could not find city: {city}"
+    
+    lat = geo["results"][0]["latitude"]
+    lon = geo["results"][0]["longitude"]
+    name = geo["results"][0]["name"]
+    
+    # Then get the weather
+    weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&temperature_unit=fahrenheit"
+    weather = requests.get(weather_url).json()
+    current = weather["current_weather"]
+    
+    result = f"Weather in {name}: {current['temperature']}°F, windspeed {current['windspeed']} km/h"
+    print(f"\n🌡 {result}")
+    return result
+
 def needs_search(task):
     decision_prompt = f"""You are a decision-making assistant.
 Decide if this question requires a live web search to answer accurately.
@@ -61,4 +104,11 @@ print("=" * 50)
 agent_loop("Who won the most recent NBA Finals and what was the score?")
 print("=" * 50)
 agent_loop("What is the capital of France?")
+
+# Save the result to a file
+write_file("nba_notes.txt", "San Antonio Spurs beat OKC 4-3 in the 2026 Western Conference Finals")
+print(read_file("nba_notes.txt"))
 agent_loop("What is earliest movie playing in lakeville emagine theater 6/7/2026?")
+get_weather("Minneapolis")
+get_weather("Lakeville, MN")
+get_weather("Lakeville")
