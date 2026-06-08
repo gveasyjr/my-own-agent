@@ -14,6 +14,9 @@ This is all for an AI Agent:
 
 
 
+
+
+
 DONE
 
 Task 2: Network config Assign MacBook a static LAN IP Verify all devices can ping 

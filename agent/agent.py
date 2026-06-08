@@ -1,7 +1,9 @@
 from langchain_ollama import OllamaLLM
 from ddgs import DDGS
 
-llm = OllamaLLM(model="llama3.2", base_url="http://0.0.0.0:11434")
+
+llm = OllamaLLM(model="qwen3", base_url="http://0.0.0.0:11434")
+#llm = OllamaLLM(model="llama3.2", base_url="http://0.0.0.0:11434")
 
 def search_web(query):
     print(f"\n🔍 Searching: {query}")
@@ -56,6 +58,76 @@ def get_weather(city):
     print(f"\n🌡 {result}")
     return result
 
+def check_email(max_results=5):
+    import pickle
+    from googleapiclient.discovery import build
+    import base64
+
+    print(f"\n📧 Checking email...")
+    
+    with open('/Users/geoffreyveasy/MYSERVER/agent/token.pickle', 'rb') as f:
+        creds = pickle.load(f)
+    
+    service = build('gmail', 'v1', credentials=creds)
+    
+    results = service.users().messages().list(
+        userId='me',
+        maxResults=max_results,
+        labelIds=['INBOX']
+    ).execute()
+    
+    messages = results.get('messages', [])
+    
+    if not messages:
+        print("No messages found.")
+        return []
+    
+    emails = []
+    for msg in messages:
+        txt = service.users().messages().get(
+            userId='me',
+            id=msg['id'],
+            format='full'
+        ).execute()
+        
+        headers = txt['payload']['headers']
+        subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
+        sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown')
+        
+        emails.append({
+            'id': msg['id'],
+            'from': sender,
+            'subject': subject
+        })
+        print(f"  📩 From: {sender} | Subject: {subject}")
+    
+    return emails
+
+def send_email(to, subject, body):
+    import pickle
+    from googleapiclient.discovery import build
+    from email.mime.text import MIMEText
+    import base64
+
+    print(f"\n📤 Sending email to: {to}")
+    
+    with open('/Users/geoffreyveasy/MYSERVER/agent/token.pickle', 'rb') as f:
+        creds = pickle.load(f)
+    
+    service = build('gmail', 'v1', credentials=creds)
+    
+    message = MIMEText(body)
+    message['to'] = to
+    message['subject'] = subject
+    
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    service.users().messages().send(
+        userId='me',
+        body={'raw': raw}
+    ).execute()
+    
+    print(f"✅ Email sent to {to}")
+
 def needs_search(task):
     decision_prompt = f"""You are a decision-making assistant.
 Decide if this question requires a live web search to answer accurately.
@@ -104,11 +176,21 @@ print("=" * 50)
 agent_loop("Who won the most recent NBA Finals and what was the score?")
 print("=" * 50)
 agent_loop("What is the capital of France?")
+print("=" * 50)
 
 # Save the result to a file
 write_file("nba_notes.txt", "San Antonio Spurs beat OKC 4-3 in the 2026 Western Conference Finals")
 print(read_file("nba_notes.txt"))
-agent_loop("What is earliest movie playing in lakeville emagine theater 6/7/2026?")
+print("=" * 50)
+agent_loop("What school does stephane zouzouambe go to?")
+agent_loop("Who are stephane zouzouambe's current friends as of 6/7/2026")
+print("=" * 50)
 get_weather("Minneapolis")
 get_weather("Lakeville, MN")
 get_weather("Lakeville")
+
+# Test Gmail
+check_email()
+print("=" * 50)
+send_email("geoflveas96@gmail.com", "Agent test#3", "omg it really works!!!")
+print("=" * 50)
