@@ -2,8 +2,8 @@ from langchain_ollama import OllamaLLM
 from ddgs import DDGS
 
 
-llm = OllamaLLM(model="qwen3", base_url="http://0.0.0.0:11434")
-#llm = OllamaLLM(model="llama3.2", base_url="http://0.0.0.0:11434")
+#llm = OllamaLLM(model="qwen3", base_url="http://0.0.0.0:11434")
+llm = OllamaLLM(model="llama3.2", base_url="http://0.0.0.0:11434")
 
 def search_web(query):
     print(f"\n🔍 Searching: {query}")
@@ -183,7 +183,7 @@ write_file("nba_notes.txt", "San Antonio Spurs beat OKC 4-3 in the 2026 Western 
 print(read_file("nba_notes.txt"))
 print("=" * 50)
 agent_loop("What school does stephane zouzouambe go to?")
-agent_loop("Who are stephane zouzouambe's current friends as of 6/7/2026")
+agent_loop("where does stephane zouzouambe live")
 print("=" * 50)
 get_weather("Minneapolis")
 get_weather("Lakeville, MN")
@@ -192,5 +192,5 @@ get_weather("Lakeville")
 # Test Gmail
 check_email()
 print("=" * 50)
-send_email("geoflveas96@gmail.com", "Agent test#3", "omg it really works!!!")
+send_email("geoflveas96@gmail.com", "Agent test#5", "its perfect")
 print("=" * 50)
