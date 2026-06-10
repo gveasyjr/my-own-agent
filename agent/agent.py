@@ -1,9 +1,27 @@
+import os
+import pickle
+from pathlib import Path
 from langchain_ollama import OllamaLLM
 from ddgs import DDGS
 
 
 #llm = OllamaLLM(model="qwen3", base_url="http://0.0.0.0:11434")
 llm = OllamaLLM(model="llama3.2", base_url="http://0.0.0.0:11434")
+
+
+def get_token_path():
+    configured_path = os.getenv("GOOGLE_TOKEN_PICKLE_PATH", "").strip()
+    if configured_path:
+        return Path(configured_path).expanduser()
+    return Path.home() / ".config" / "my-own-agent" / "token.pickle"
+
+
+def load_gmail_creds():
+    token_path = get_token_path()
+    if not token_path.exists():
+        raise FileNotFoundError(f"Gmail token not found at {token_path}. Run auth.py first or set GOOGLE_TOKEN_PICKLE_PATH.")
+    with token_path.open("rb") as f:
+        return pickle.load(f)
 
 def search_web(query):
     print(f"\n🔍 Searching: {query}")
@@ -64,10 +82,9 @@ def check_email(max_results=5):
     import base64
 
     print(f"\n📧 Checking email...")
-    
-    with open('/Users/geoffreyveasy/MYSERVER/agent/token.pickle', 'rb') as f:
-        creds = pickle.load(f)
-    
+
+    creds = load_gmail_creds()
+
     service = build('gmail', 'v1', credentials=creds)
     
     results = service.users().messages().list(
@@ -110,10 +127,9 @@ def send_email(to, subject, body):
     import base64
 
     print(f"\n📤 Sending email to: {to}")
-    
-    with open('/Users/geoffreyveasy/MYSERVER/agent/token.pickle', 'rb') as f:
-        creds = pickle.load(f)
-    
+
+    creds = load_gmail_creds()
+
     service = build('gmail', 'v1', credentials=creds)
     
     message = MIMEText(body)
