@@ -8,6 +8,21 @@ from langchain_ollama import OllamaLLM
 from ddgs import DDGS
 from googleapiclient.discovery import build
 
+
+def load_env_file():
+    env_path = Path(__file__).resolve().parent.parent / '.env'
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, value = line.split('=', 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+load_env_file()
+
 TOKEN = os.getenv("DISCORD_BOT_TOKEN", "").strip()
 if not TOKEN:
     raise RuntimeError("Set DISCORD_BOT_TOKEN in your environment before starting the bot.")
@@ -21,10 +36,7 @@ client = discord.Client(intents=intents)
 
 
 def get_token_path():
-    configured_path = os.getenv("GOOGLE_TOKEN_PICKLE_PATH", "").strip()
-    if configured_path:
-        return Path(configured_path).expanduser()
-    return Path.home() / ".config" / "my-own-agent" / "token.pickle"
+    return Path("/Users/geoffreyveasy/MYSERVER/agent/token.pickle")
 
 
 def load_gmail_creds():
