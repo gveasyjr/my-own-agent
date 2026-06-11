@@ -7,6 +7,9 @@ from langchain_ollama import OllamaLLM
 from ddgs import DDGS
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
+import chromadb
+from chromadb.utils import embedding_functions
+
 
 # ── Config ────────────────────────────────────────────
 #llm = OllamaLLM(model="qwen3", base_url="http://0.0.0.0:11434")
@@ -14,12 +17,62 @@ llm = OllamaLLM(model="llama3.2", base_url="http://0.0.0.0:11434")
 TOKEN_PATH = Path("/Users/geoffreyveasy/MYSERVER/agent/token.pickle")
 DATA_PATH  = Path("/Users/geoffreyveasy/MYSERVER/agent/data")
 
+
+# ── Short-term memory ─────────────────────────────────
+conversation_history = []
+
+def remember(role, content):
+    conversation_history.append({"role": role, "content": content})
+
+def get_history_as_text():
+    if not conversation_history:
+        return ""
+    lines = [f"{m['role'].upper()}: {m['content']}" for m in conversation_history]
+    return "\n".join(lines)
+
+def clear_history():
+    conversation_history.clear()
+    print("🧹 Conversation history cleared.")
+
+
+# ── Long-term memory (ChromaDB) ───────────────────────
+chroma_client = chromadb.PersistentClient(
+    path="/Users/geoffreyveasy/MYSERVER/agent/memory"
+)
+collection = chroma_client.get_or_create_collection(name="agent_memory")
+
+def save_to_memory(content, metadata=None):
+    import hashlib
+    from datetime import datetime
+    doc_id = hashlib.md5(content.encode()).hexdigest()
+    collection.upsert(
+        documents=[content],
+        ids=[doc_id],
+        metadatas=[metadata or {"saved_at": datetime.now().isoformat()}]
+    )
+    print(f"\n🧠 Saved to long-term memory: {content[:60]}...")
+
+def search_memory(query, n_results=3):
+    if collection.count() == 0:
+        return ""
+    results = collection.query(
+        query_texts=[query],
+        n_results=min(n_results, collection.count())
+    )
+    if not results["documents"][0]:
+        return ""
+    memories = results["documents"][0]
+    print(f"\n💾 Retrieved {len(memories)} memories")
+    return "\n".join(memories)
+
+
 # ── Gmail creds ───────────────────────────────────────
 def load_gmail_creds():
     if not TOKEN_PATH.exists():
         raise FileNotFoundError(f"Token not found at {TOKEN_PATH}. Run auth.py first.")
     with TOKEN_PATH.open("rb") as f:
         return pickle.load(f)
+
 
 # ── Tools ─────────────────────────────────────────────
 def search_web(query):
@@ -126,7 +179,8 @@ def get_calendar_events(max_results=5):
 
     return "\n".join(output)
 
-# ── Agent loop ────────────────────────────────────────
+
+# ── Decision ─────────────────────────────────────────
 def needs_search(task):
     prompt = f"""You are a decision-making assistant.
 Decide if this question requires a live web search.
@@ -144,31 +198,65 @@ Reply one word only: SEARCH or ANSWER"""
     print(f"\n🤔 Decision: {decision}")
     return "SEARCH" in decision
 
+
+# ── Agent loop ────────────────────────────────────────
 def agent_loop(task):
     print(f"\n🧠 Task received: {task}")
+    remember("user", task)
+
+    history = get_history_as_text()
+    long_term = search_memory(task)
+
     if needs_search(task):
         results = search_web(task)
-        context = f"""You are a helpful AI agent. Use ONLY these live web search results to answer.
+        context = f"""You are a helpful AI agent with memory.
 
-SEARCH RESULTS:
+LONG-TERM MEMORY:
+{long_term}
+
+CONVERSATION HISTORY:
+{history}
+
+LIVE SEARCH RESULTS:
 {results}
 
 QUESTION: {task}
 
-Answer based strictly on the search results above:"""
+Answer based on all context above:"""
     else:
         print(f"\n💡 Using training data — no search needed")
-        context = f"Answer this question: {task}"
+        context = f"""You are a helpful AI agent with memory.
+
+LONG-TERM MEMORY:
+{long_term}
+
+CONVERSATION HISTORY:
+{history}
+
+QUESTION: {task}
+
+Answer the question using all context above:"""
+
     thought = llm.invoke(context)
+    remember("assistant", thought)
+
+    # Save important things to long-term memory
+    save_to_memory(f"User said: {task}")
+    save_to_memory(f"Agent answered: {thought}")
+
     print(f"\n💭 Agent answer:\n{thought}")
     print(f"\n✅ Done.")
     return thought
 
+
+
 # ── Tests ─────────────────────────────────────────────
 if __name__ == "__main__":
+    agent_loop("What is my name and where do I live?")
+    agent_loop("What is the weather where I live?")
     get_weather("Lakeville")
     check_email()
-    send_email("geoflveas96@gmail.com", "Agent test3", "Hello from your agent!")
+    send_email("geoflveas96@gmail.com", "Agent test5", "Hello from your agent!")
     get_calendar_events()
     agent_loop("What is the capital of France?")
     agent_loop("Who won the 2026 NBA Western Conference Finals?")
