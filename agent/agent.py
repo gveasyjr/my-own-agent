@@ -9,6 +9,7 @@ from googleapiclient.discovery import build
 from email.mime.text import MIMEText
 import chromadb
 from chromadb.utils import embedding_functions
+import sqlite3
 
 
 # ── Config ────────────────────────────────────────────
@@ -64,6 +65,70 @@ def search_memory(query, n_results=3):
     memories = results["documents"][0]
     print(f"\n💾 Retrieved {len(memories)} memories")
     return "\n".join(memories)
+
+
+# ── RAG (document search) ─────────────────────────────
+docs_collection = chroma_client.get_or_create_collection(name="documents")
+
+def search_docs(query, n_results=3):
+    if docs_collection.count() == 0:
+        return ""
+    results = docs_collection.query(
+        query_texts=[query],
+        n_results=min(n_results, docs_collection.count())
+    )
+    if not results["documents"][0]:
+        return ""
+    docs = results["documents"][0]
+    print(f"\n📚 Retrieved {len(docs)} document chunks")
+    return "\n\n".join(docs)
+
+
+# ── File-based memory (SQLite) ────────────────────────
+DB_PATH = Path("/Users/geoffreyveasy/MYSERVER/agent/memory/facts.db")
+
+def init_db():
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS facts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT,
+            content TEXT,
+            created_at TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def save_fact(category, content):
+    from datetime import datetime
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "INSERT INTO facts (category, content, created_at) VALUES (?, ?, ?)",
+        (category, content, datetime.now().isoformat())
+    )
+    conn.commit()
+    conn.close()
+    print(f"\n🗄 Fact saved [{category}]: {content}")
+
+def get_facts(category=None):
+    conn = sqlite3.connect(DB_PATH)
+    if category:
+        rows = conn.execute(
+            "SELECT category, content, created_at FROM facts WHERE category=? ORDER BY created_at DESC",
+            (category,)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT category, content, created_at FROM facts ORDER BY created_at DESC"
+        ).fetchall()
+    conn.close()
+    if not rows:
+        return "No facts found."
+    return "\n".join([f"[{r[0]}] {r[1]} ({r[2]})" for r in rows])
 
 
 # ── Gmail creds ───────────────────────────────────────
@@ -249,14 +314,78 @@ Answer the question using all context above:"""
     return thought
 
 
-
 # ── Tests ─────────────────────────────────────────────
 if __name__ == "__main__":
-    agent_loop("What is my name and where do I live?")
-    agent_loop("What is the weather where I live?")
+    print("\n" + "="*50)
+    print("TOOL TESTS")
+    print("="*50)
+
+    # Weather tool
     get_weather("Lakeville")
+
+    # Email tools
     check_email()
-    send_email("geoflveas96@gmail.com", "Agent test5", "Hello from your agent!")
+    send_email("geoflveas96@gmail.com", "Agent test7", "Hello from your agent!")
+
+    # Calendar tool
     get_calendar_events()
+
+    # File read/write tool
+    write_file("test_note.txt", "This is a test note from the agent.")
+    print(read_file("test_note.txt"))
+
+    print("\n" + "="*50)
+    print("FILE-BASED MEMORY (SQLite)")
+    print("="*50)
+
+    # Save structured facts
+    save_fact("user", "Name is Geoffrey")
+    save_fact("user", "Lives in Lakeville Minnesota")
+    save_fact("preference", "Prefers Fahrenheit for weather")
+
+    # Read them back
+    print("\nAll facts:")
+    print(get_facts())
+    print("\nUser facts only:")
+    print(get_facts("user"))
+
+    print("\n" + "="*50)
+    print("SHORT-TERM MEMORY (conversation history)")
+    print("="*50)
+
+    clear_history()
+
+    agent_loop("My name is John Doe and I live in Minneapolis Minnesota.")
+    agent_loop("What is my name?")
+    agent_loop("Where do I live?")
+    agent_loop("What is the weather where I live?")
+
+    print("\n" + "="*50)
+    print("LONG-TERM MEMORY (ChromaDB)")
+    print("="*50)
+
+    save_to_memory("User's favorite color is blue", {"category": "preference"})
+    save_to_memory("User has a dog named Max", {"category": "user"})
+
+    clear_history()
+
+    agent_loop("What is my favorite color?")
+    agent_loop("What is my dog's name?")
+
+    print("\n" + "="*50)
+    print("RAG (personal document search)")
+    print("="*50)
+
+    clear_history()
+
+    # These answers should come from about_me.txt not web search or training data
+    agent_loop("Where does Geoffrey live according to his documents?")
+    agent_loop("What is Geoffrey building?")
+    agent_loop("What is Geoffrey's favorite programming language?")
+
+    print("\n" + "="*50)
+    print("SEARCH + MEMORY COMBINED")
+    print("="*50)
+
     agent_loop("What is the capital of France?")
     agent_loop("Who won the 2026 NBA Western Conference Finals?")
