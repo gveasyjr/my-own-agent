@@ -43,7 +43,7 @@ Hardware & environment => Local LLM core => Agent layer (Python) => Memory &
 persistence => Interface & delivery
 
 
-
+==========================================================
 Phase 1  Hardware & environment
 Pick your server machine (Mac or Windows 10 laptop)
 Install Ollama, Python, VS Code on the server

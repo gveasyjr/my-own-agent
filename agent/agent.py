@@ -13,8 +13,8 @@ import sqlite3
 
 
 # ── Config ────────────────────────────────────────────
-#llm = OllamaLLM(model="qwen3", base_url="http://0.0.0.0:11434")
-llm = OllamaLLM(model="llama3.2", base_url="http://0.0.0.0:11434")
+llm = OllamaLLM(model="qwen3", base_url="http://0.0.0.0:11434")
+#llm = OllamaLLM(model="llama3.2", base_url="http://0.0.0.0:11434")
 TOKEN_PATH = Path("/Users/geoffreyveasy/MYSERVER/agent/token.pickle")
 DATA_PATH  = Path("/Users/geoffreyveasy/MYSERVER/agent/data")
 
@@ -271,6 +271,7 @@ def agent_loop(task):
 
     history = get_history_as_text()
     long_term = search_memory(task)
+    doc_results = search_docs(task)
 
     if needs_search(task):
         results = search_web(task)
@@ -278,6 +279,9 @@ def agent_loop(task):
 
 LONG-TERM MEMORY:
 {long_term}
+
+PERSONAL DOCUMENTS:
+{doc_results}
 
 CONVERSATION HISTORY:
 {history}

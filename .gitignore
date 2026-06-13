@@ -1,7 +1,8 @@
 agent/venv/
 agent/token.pickle
 agent/credentials.json
+agent/memory/
 agent/data/
+.env
 __pycache__/
 *.pyc
-.env
